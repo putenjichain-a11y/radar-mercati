@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Radar Mercati</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&display=swap">
+<style>
+:root {
+  --bg: #eef1f5; --surface: #ffffff; --sunk: #f5f7fa; --line: #d6dce5; --grid: #e6eaf0;
+  --fg: #16202c; --muted: #5b6878; --faint: #8994a3;
+  --ink: #1f4e8c; --ink-soft: #e2ebf7;
+  --gain: #15784a; --loss: #b2362e; --todo: #a8650a;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --cond: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #10161e; --surface: #18212c; --sunk: #141c26; --line: #2a3644; --grid: #222d3a;
+  --fg: #e3e9f0; --muted: #96a3b4; --faint: #6c7a8c;
+  --ink: #82b2ee; --ink-soft: #1f3048;
+  --gain: #5cc792; --loss: #ef837a; --todo: #e3a84a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #10161e; --surface: #18212c; --sunk: #141c26; --line: #2a3644; --grid: #222d3a;
+  --fg: #e3e9f0; --muted: #96a3b4; --faint: #6c7a8c;
+  --ink: #82b2ee; --ink-soft: #1f3048;
+  --gain: #5cc792; --loss: #ef837a; --todo: #e3a84a; color-scheme: dark }
+* { box-sizing: border-box }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 15px; line-height: 1.45;
+  padding-top: env(safe-area-inset-top,0px); padding-bottom: env(safe-area-inset-bottom,0px) }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 22px 16px 64px; display: flex; flex-direction: column; gap: 16px }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums }
+.gain { color: var(--gain) } .loss { color: var(--loss) } .muted { color: var(--muted) }
+button { font: inherit; cursor: pointer; color: inherit }
+a { color: var(--ink) }
+
+header.top { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: baseline }
+header.top h1 { font-family: var(--cond); font-size: 30px; font-weight: 600; margin: 0; letter-spacing: .2px }
+header.top .sub { color: var(--muted); font-size: 13.5px }
+header.top .spacer { margin-left: auto }
+.ghost { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; font-size: 13px }
+.ghost:hover { border-color: var(--ink) }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px }
+.ph { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline }
+.ph h2 { font-family: var(--cond); font-size: 19px; font-weight: 600; margin: 0 }
+.ph .note { font-size: 12.5px; color: var(--muted) }
+.ph .spacer { margin-left: auto }
+.lbl-s { font-size: 12.5px; color: var(--muted) }
+
+.filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center }
+.seg { font-size: 13px; padding: 5px 11px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px }
+.seg:hover { border-color: var(--ink) }
+.seg[aria-pressed="true"] { background: var(--ink-soft); border-color: var(--ink); color: var(--ink); font-weight: 500 }
+input[type="search"] { font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--sunk); color: var(--fg); min-width: 150px; flex: 1 1 150px; max-width: 260px }
+
+.rows { display: flex; flex-direction: column }
+.row { display: grid; grid-template-columns: 26px minmax(0,1fr) auto auto; gap: 6px 10px; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid var(--grid) }
+.row:last-child { border-bottom: 0 }
+.row .star { background: none; border: 0; padding: 0; font-size: 15px; line-height: 1; color: var(--faint) }
+.row .star[aria-pressed="true"] { color: var(--todo) }
+.row .who { min-width: 0 }
+.row .sym { font-family: var(--mono); font-weight: 600; font-size: 14px }
+.row .nome { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.row .last { font-family: var(--mono); font-size: 15px; text-align: right }
+.row .pct { font-family: var(--mono); font-size: 14px; font-weight: 600; text-align: right; min-width: 74px }
+.row .range { grid-column: 2 / -1; height: 4px; background: var(--grid); border-radius: 2px; position: relative; margin-top: 2px }
+.row .range i { position: absolute; top: -2px; width: 2px; height: 8px; background: var(--fg); border-radius: 1px }
+.tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap }
+
+.news { display: flex; flex-direction: column }
+.nw { display: grid; grid-template-columns: 62px minmax(0,1fr); gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--grid); font-size: 14px }
+.nw:last-child { border-bottom: 0 }
+.nw .t { font-family: var(--mono); font-size: 12.5px; color: var(--muted) }
+
+.day { font-family: var(--cond); font-size: 15px; font-weight: 600; margin-top: 10px; padding-bottom: 4px; border-bottom: 1px solid var(--line); text-transform: capitalize }
+.ev { display: grid; grid-template-columns: 52px 18px minmax(0,1fr) auto; gap: 10px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--grid); font-size: 14px }
+.ev:last-child { border-bottom: 0 }
+.ev .t { font-family: var(--mono); font-size: 12.5px; color: var(--muted) }
+.ev .imp { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); display: inline-block }
+.ev .imp.alto { background: var(--loss) } .ev .imp.medio { background: var(--todo) }
+.ev .val { font-family: var(--mono); font-size: 12.5px; color: var(--muted); white-space: nowrap }
+.ev .cc { font-size: 11px; color: var(--muted); font-family: var(--mono) }
+
+.idxgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px,100%),1fr)); gap: 10px }
+.idx { background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px }
+.idx .n1 { display: flex; gap: 8px; align-items: baseline }
+.idx .sym { font-family: var(--mono); font-weight: 600; font-size: 14px }
+.idx .nome { font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.idx .big { font-family: var(--mono); font-size: 22px; font-weight: 500 }
+.idx .p { font-family: var(--mono); font-size: 13.5px; font-weight: 600; margin-left: auto }
+.idx .range { height: 4px; background: var(--grid); border-radius: 2px; position: relative; margin-top: 3px }
+.idx .range i { position: absolute; top: -2px; width: 2px; height: 8px; background: var(--fg); border-radius: 1px }
+.piu { align-self: flex-start; margin-top: 6px }
+.empty { padding: 18px 4px; color: var(--muted); font-size: 14px }
+.stale { border-left: 3px solid var(--todo); background: var(--sunk); border-radius: 6px; padding: 9px 12px; font-size: 13px }
+footer { font-size: 12px; color: var(--faint); line-height: 1.6 }
+@media (max-width: 560px) {
+  .row { grid-template-columns: 24px minmax(0,1fr) auto; }
+  .row .pct { grid-column: 3; }
+  .row .last { grid-column: 2; text-align: left; font-size: 14px }
+  .row .who { grid-column: 2 }
+  .ev { grid-template-columns: 48px 14px minmax(0,1fr); }
+  .ev .val { grid-column: 3; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Radar Mercati</h1>
+    <span class="sub" id="sub">—</span>
+    <span class="spacer"></span>
+    <button class="ghost" id="tema" type="button">Tema</button>
+  </header>
+
+  <section class="panel">
+    <div class="ph"><h2>Indici e futures</h2><span class="note" id="idx-note"></span></div>
+    <div id="idx" class="idxgrid"></div>
+  </section>
+
+  <section class="panel">
+    <div class="ph"><h2>Chi si muove</h2><span class="note" id="pz-note"></span>
+      <span class="spacer"></span>
+      <div class="filters">
+        <button class="seg" data-g="azione" aria-pressed="true">Azioni</button>
+        <button class="seg" data-g="tutti">Tutto</button>
+        <button class="seg" data-g="indice">Indici</button>
+        <button class="seg" data-g="mia">La mia lista</button>
+      </div>
+    </div>
+    <div class="filters">
+      <input type="search" id="cerca" placeholder="Cerca simbolo o nome" aria-label="Cerca">
+      <button class="seg" data-s="pct" aria-pressed="true">Chi si muove di più</button>
+      <button class="seg" data-s="su">Solo rialzi</button>
+      <button class="seg" data-s="giu">Solo ribassi</button>
+      <button class="seg" data-s="az">A-Z</button>
+    </div>
+    <div id="prezzi" class="rows"></div>
+    <button class="ghost piu" id="piu" type="button" hidden></button>
+    <div class="lbl-s" id="pz-fonte"></div>
+  </section>
+
+  <section class="panel">
+    <div class="ph"><h2>News</h2><span class="note" id="nw-note"></span></div>
+    <div id="news" class="news"></div>
+  </section>
+
+  <section class="panel">
+    <div class="ph"><h2>Calendario</h2><span class="note">prossimi eventi ad alto e medio impatto, ora italiana</span></div>
+    <div id="cal"></div>
+  </section>
+
+  <footer id="piede"></footer>
+</div>
+
+<script id="dati" type="application/json">{"aggiornato":"2026-11-16T14:30:35Z","prezzi":{"aggiornato":"2026-11-13T21:00:00Z","fonte":"stockanalysis.com · chiusura di venerdì 13 novembre","items":[{"sym":"QQQ","nome":"Invesco QQQ · Nasdaq 100","gruppo":"indice","last":679.89,"pct":-1.2,"low":671.68,"high":688.75},{"sym":"SPY","nome":"SPDR S&P 500","gruppo":"indice","last":754.37,"pct":-0.36,"low":747.9,"high":760.12},{"sym":"GLD","nome":"SPDR Gold Shares · oro","gruppo":"indice","last":355.45,"pct":0.16,"low":354.42,"high":357.3},{"sym":"AAPL","nome":"Apple Inc.","gruppo":"azione","last":356.27,"pct":0.39},{"sym":"NVDA","nome":"NVIDIA Corporation","gruppo":"azione","last":162.85,"pct":-2.01},{"sym":"MSFT","nome":"Microsoft Corporation","gruppo":"azione","last":523.88,"pct":0.17},{"sym":"AMZN","nome":"Amazon.com, Inc.","gruppo":"azione","last":266.66,"pct":-0.29},{"sym":"MU","nome":"Micron Technology, Inc.","gruppo":"azione","last":778.31,"pct":-2.52},{"sym":"AMD","nome":"Advanced Micro Devices, Inc.","gruppo":"azione","last":534.06,"pct":-8.75},{"sym":"TSLA","nome":"Tesla, Inc.","gruppo":"azione","last":390.22,"pct":-1.82},{"sym":"META","nome":"Meta Platforms, Inc.","gruppo":"azione","last":641.69,"pct":2.9},{"sym":"GOOGL","nome":"Alphabet Inc.","gruppo":"azione","last":295.77,"pct":-0.98},{"sym":"WMT","nome":"Walmart Inc.","gruppo":"azione","last":128.09,"pct":1.51},{"sym":"AVGO","nome":"Broadcom Inc.","gruppo":"azione","last":347.01,"pct":-4.76},{"sym":"SPCX","nome":"Space Exploration Technologies Corp.","gruppo":"azione","last":139.11,"pct":-0.59},{"sym":"GOOG","nome":"Alphabet Inc.","gruppo":"azione","last":292.52,"pct":-0.96},{"sym":"COST","nome":"Costco Wholesale Corporation","gruppo":"azione","last":1106.21,"pct":1.28},{"sym":"PLTR","nome":"Palantir Technologies Inc.","gruppo":"azione","last":167.99,"pct":-2.09},{"sym":"CSCO","nome":"Cisco Systems, Inc.","gruppo":"azione","last":95.64,"pct":-6.24},{"sym":"INTC","nome":"Intel Corporation","gruppo":"azione","last":59.66,"pct":-2.52},{"sym":"AMAT","nome":"Applied Materials, Inc.","gruppo":"azione","last":370.5,"pct":-2.74},{"sym":"LRCX","nome":"Lam Research Corporation","gruppo":"azione","last":225.92,"pct":-3.36},{"sym":"TXN","nome":"Texas Instruments Incorporated","gruppo":"azione","last":303.6,"pct":-2.84},{"sym":"PANW","nome":"Palo Alto Networks, Inc.","gruppo":"azione","last":322.24,"pct":-0.13},{"sym":"NFLX","nome":"Netflix, Inc.","gruppo":"azione","last":62.15,"pct":-0.86},{"sym":"AMGN","nome":"Amgen Inc.","gruppo":"azione","last":465.67,"pct":-0.3},{"sym":"LIN","nome":"Linde plc","gruppo":"azione","last":526.06,"pct":0.68},{"sym":"CRWD","nome":"CrowdStrike Holdings, Inc.","gruppo":"azione","last":226.61,"pct":-1.42},{"sym":"GILD","nome":"Gilead Sciences, Inc.","gruppo":"azione","last":168.08,"pct":0.08},{"sym":"KLAC","nome":"KLA Corporation","gruppo":"azione","last":152.32,"pct":-3.17},{"sym":"PEP","nome":"PepsiCo, Inc.","gruppo":"azione","last":145.44,"pct":2.24},{"sym":"ADI","nome":"Analog Devices, Inc.","gruppo":"azione","last":397.97,"pct":-2.77},{"sym":"TMUS","nome":"T-Mobile US, Inc.","gruppo":"azione","last":169.95,"pct":-0.63},{"sym":"QCOM","nome":"QUALCOMM Incorporated","gruppo":"azione","last":172.47,"pct":-2.64},{"sym":"SHOP","nome":"Shopify Inc.","gruppo":"azione","last":147.09,"pct":0.21},{"sym":"ISRG","nome":"Intuitive Surgical, Inc.","gruppo":"azione","last":443.59,"pct":0.84},{"sym":"ASML","nome":"ASML Holding N.V.","gruppo":"azione","last":1495.16,"pct":-0.13},{"sym":"MRVL","nome":"Marvell Technology, Inc.","gruppo":"azione","last":156.76,"pct":-4.68},{"sym":"VRTX","nome":"Vertex Pharmaceuticals Incorporated","gruppo":"azione","last":538.6,"pct":-0.74},{"sym":"SNDK","nome":"Sandisk Corporation","gruppo":"azione","last":885.01,"pct":-5.59},{"sym":"APP","nome":"AppLovin Corporation","gruppo":"azione","last":409.1,"pct":3.92},{"sym":"ADP","nome":"Automatic Data Processing, Inc.","gruppo":"azione","last":309.93,"pct":0.65},{"sym":"SBUX","nome":"Starbucks Corporation","gruppo":"azione","last":106.44,"pct":-0.18},{"sym":"BKNG","nome":"Booking Holdings Inc.","gruppo":"azione","last":159.58,"pct":-1.0},{"sym":"STX","nome":"Seagate Technology Holdings plc","gruppo":"azione","last":528.29,"pct":-3.09},{"sym":"MAR","nome":"Marriott International, Inc.","gruppo":"azione","last":423.16,"pct":-0.35},{"sym":"WDC","nome":"Western Digital Corporation","gruppo":"azione","last":295.65,"pct":-5.0},{"sym":"CEG","nome":"Constellation Energy Corporation","gruppo":"azione","last":280.2,"pct":-0.78},{"sym":"ADBE","nome":"Adobe Inc.","gruppo":"azione","last":243.08,"pct":1.9},{"sym":"REGN","nome":"Regeneron Pharmaceuticals, Inc.","gruppo":"azione","last":955.47,"pct":0.45},{"sym":"CSX","nome":"CSX Corporation","gruppo":"azione","last":52.05,"pct":-0.67},{"sym":"INTU","nome":"Intuit Inc.","gruppo":"azione","last":341.7,"pct":0.45},{"sym":"FTNT","nome":"Fortinet, Inc.","gruppo":"azione","last":127.22,"pct":-1.79},{"sym":"MNST","nome":"Monster Beverage Corporation","gruppo":"azione","last":46.46,"pct":1.95},{"sym":"CTAS","nome":"Cintas Corporation","gruppo":"azione","last":226.24,"pct":-0.33},{"sym":"MRNA","nome":"Moderna, Inc.","gruppo":"azione","last":223.37,"pct":-3.45},{"sym":"CMCSA","nome":"Comcast Corporation","gruppo":"azione","last":25.16,"pct":1.45},{"sym":"CDNS","nome":"Cadence Design Systems, Inc.","gruppo":"azione","last":323.01,"pct":-3.09},{"sym":"SNPS","nome":"Synopsys, Inc.","gruppo":"azione","last":455.2,"pct":-1.62},{"sym":"MDLZ","nome":"Mondelez International, Inc.","gruppo":"azione","last":67.54,"pct":1.47},{"sym":"ARM","nome":"Arm Holdings plc","gruppo":"azione","last":190.53,"pct":-4.63},{"sym":"ABNB","nome":"Airbnb, Inc.","gruppo":"azione","last":186.78,"pct":3.12},{"sym":"MELI","nome":"MercadoLibre, Inc.","gruppo":"azione","last":1491.49,"pct":1.11},{"sym":"ORLY","nome":"O'Reilly Automotive, Inc.","gruppo":"azione","last":92.19,"pct":0.69},{"sym":"ROST","nome":"Ross Stores, Inc.","gruppo":"azione","last":231.68,"pct":-2.34},{"sym":"HON","nome":"Honeywell International Inc.","gruppo":"azione","last":222.46,"pct":-0.13},{"sym":"AEP","nome":"American Electric Power Company, Inc.","gruppo":"azione","last":129.18,"pct":0.21},{"sym":"DASH","nome":"DoorDash, Inc.","gruppo":"azione","last":171.51,"pct":-0.62},{"sym":"MPWR","nome":"Monolithic Power Systems, Inc.","gruppo":"azione","last":1390.54,"pct":-3.93},{"sym":"NXPI","nome":"NXP Semiconductors N.V.","gruppo":"azione","last":265.09,"pct":-0.82},{"sym":"FAST","nome":"Fastenal Company","gruppo":"azione","last":55.19,"pct":-0.65},{"sym":"DDOG","nome":"Datadog, Inc.","gruppo":"azione","last":184.16,"pct":-0.16},{"sym":"PCAR","nome":"PACCAR Inc","gruppo":"azione","last":106.66,"pct":0.31},{"sym":"IDXX","nome":"IDEXX Laboratories, Inc.","gruppo":"azione","last":704.23,"pct":0.89},{"sym":"ADSK","nome":"Autodesk, Inc.","gruppo":"azione","last":264.42,"pct":1.9},{"sym":"LITE","nome":"Lumentum Holdings Inc.","gruppo":"azione","last":596.62,"pct":-4.49},{"sym":"PDD","nome":"PDD Holdings Inc.","gruppo":"azione","last":78.97,"pct":1.86},{"sym":"HONA","nome":"Honeywell Aerospace Inc.","gruppo":"azione","last":165.01,"pct":-0.49},{"sym":"FANG","nome":"Diamondback Energy, Inc.","gruppo":"azione","last":184.93,"pct":1.5},{"sym":"CCEP","nome":"Coca-Cola Europacific Partners PLC","gruppo":"azione","last":118.57,"pct":1.4},{"sym":"XEL","nome":"Xcel Energy Inc.","gruppo":"azione","last":81.61,"pct":0.13},{"sym":"PYPL","nome":"PayPal Holdings, Inc.","gruppo":"azione","last":59.28,"pct":1.68},{"sym":"KDP","nome":"Keurig Dr Pepper Inc.","gruppo":"azione","last":36.34,"pct":2.6},{"sym":"BKR","nome":"Baker Hughes Company","gruppo":"azione","last":49.44,"pct":1.19},{"sym":"EXC","nome":"Exelon Corporation","gruppo":"azione","last":46.25,"pct":1.36},{"sym":"ROP","nome":"Roper Technologies, Inc.","gruppo":"azione","last":479.98,"pct":0.44},{"sym":"FER","nome":"Ferrovial N.V.","gruppo":"azione","last":61.68,"pct":0.83},{"sym":"TTWO","nome":"Take-Two Interactive Software, Inc.","gruppo":"azione","last":227.82,"pct":0.38},{"sym":"TRI","nome":"Thomson Reuters Corporation","gruppo":"azione","last":109.3,"pct":0.05},{"sym":"PAYX","nome":"Paychex, Inc.","gruppo":"azione","last":115.68,"pct":0.43},{"sym":"MSTR","nome":"Strategy Inc","gruppo":"azione","last":111.62,"pct":-2.44},{"sym":"TER","nome":"Teradyne, Inc.","gruppo":"azione","last":249.55,"pct":-5.38},{"sym":"ALAB","nome":"Astera Labs, Inc.","gruppo":"azione","last":221.83,"pct":-2.62},{"sym":"WDAY","nome":"Workday, Inc.","gruppo":"azione","last":196.45,"pct":3.05},{"sym":"GEHC","nome":"GE HealthCare Technologies Inc.","gruppo":"azione","last":83.02,"pct":1.44},{"sym":"RKLB","nome":"Rocket Lab Corporation","gruppo":"azione","last":61.53,"pct":-3.96},{"sym":"ODFL","nome":"Old Dominion Freight Line, Inc.","gruppo":"azione","last":174.54,"pct":1.68},{"sym":"MCHP","nome":"Microchip Technology Incorporated","gruppo":"azione","last":61.68,"pct":-0.64},{"sym":"DXCM","nome":"DexCom, Inc.","gruppo":"azione","last":83.33,"pct":2.38},{"sym":"CPRT","nome":"Copart, Inc.","gruppo":"azione","last":31.83,"pct":-0.53},{"sym":"NBIS","nome":"Nebius Group N.V.","gruppo":"azione","last":115.88,"pct":-9.92},{"sym":"AXON","nome":"Axon Enterprise, Inc.","gruppo":"azione","last":315.43,"pct":2.71},{"sym":"CRWV","nome":"CoreWeave, Inc.","gruppo":"azione","last":53.13,"pct":-6.13},{"sym":"ALNY","nome":"Alnylam Pharmaceuticals, Inc.","gruppo":"azione","last":165.04,"pct":5.36}]},"news":{"aggiornato":"2026-11-16T04:34:38Z","fonte":"FinancialJuice","items":[{"t":"2026-11-16T04:34:38Z","titolo":"Giappone, utilizzo della capacità produttiva +1,6% su mese (prec. −4,2%)"},{"t":"2026-11-16T04:28:00Z","titolo":"Iran, le Guardie rivoluzionarie: due petroliere hanno urtato mine nello Stretto di Hormuz, esplosioni a bordo"},{"t":"2026-11-16T04:14:06Z","titolo":"BoJ, Takata: il 2026 apre una fase nuova, serve spostare l'attenzione sulla spinta dei prezzi"},{"t":"2026-11-16T04:12:58Z","titolo":"BoJ, Takata: il rischio di un forte rallentamento dell'economia giapponese si è attenuato"},{"t":"2026-11-16T04:12:05Z","titolo":"BoJ, Takata: la banca sta ancora alzando il tasso per normalizzare la politica monetaria"},{"t":"2026-11-16T04:09:44Z","titolo":"BoJ, Takata: nonostante la volatilità di inizio novembre sui titoli legati all'IA"},{"t":"2026-11-16T04:09:28Z","titolo":"BoJ, Takata: l'effetto cumulato dei rialzi si vedrà ancora più avanti"},{"t":"2026-11-16T04:09:14Z","titolo":"BoJ, Takata: la banca centrale è in una fase che richiede risposte rapide"},{"t":"2026-11-16T04:08:24Z","titolo":"Russia, detriti di droni provocano un incendio in un sito industriale nel Krasnodar"},{"t":"2026-11-16T04:08:24Z","titolo":"BoJ, Takata: contano anche azioni, immobiliare e cambio nel valutare le condizioni finanziarie"},{"t":"2026-11-16T04:08:04Z","titolo":"BoJ, Takata: in Giappone le condizioni di finanziamento restano accomodanti"},{"t":"2026-11-16T04:07:14Z","titolo":"BoJ, Takata: la banca deve muoversi in fretta sui rialzi dopo le verifiche"},{"t":"2026-11-16T04:06:16Z","titolo":"BoJ, Takata: serve un cambio di regime, portando presto il tasso in una posizione favorevole"},{"t":"2026-11-16T04:05:57Z","titolo":"BoJ, Takata: pressioni sui prezzi possibili nella seconda metà dell'anno fiscale 2026"},{"t":"2026-11-16T04:05:42Z","titolo":"BoJ, Takata: la banca deve mostrare fermezza per fermare la spinta al rialzo dei prezzi"},{"t":"2026-11-16T04:05:35Z","titolo":"Nvidia, Amazon e Microsoft tra le aziende che l'amministrazione Trump indicherà come campioni nazionali dell'IA (WSJ)"},{"t":"2026-11-16T04:04:28Z","titolo":"BoJ, Takata: con le banche centrali estere in ciclo di rialzi, la BoJ deve valutare i rischi"},{"t":"2026-11-16T04:02:45Z","titolo":"BoJ, Takata: il tasso giapponese si è finalmente avvicinato alla zona neutrale"},{"t":"2026-11-16T04:02:31Z","titolo":"BoJ, Takata: meglio evitare un ritmo fisso dei rialzi"}]},"calendario":{"aggiornato":"2026-11-16T14:30:35Z","fonte":"ForexFactory","items":[{"t":"2026-11-16T13:30:00Z","paese":"CAD","titolo":"CPI m/m","impatto":"High","forecast":"0.3%","previous":"0.1%"},{"t":"2026-11-16T13:30:00Z","paese":"CAD","titolo":"Median CPI y/y","impatto":"High","forecast":"2.0%","previous":"1.9%"},{"t":"2026-11-16T13:30:00Z","paese":"CAD","titolo":"Trimmed CPI y/y","impatto":"High","forecast":"1.9%","previous":"1.8%"},{"t":"2026-11-16T13:30:00Z","paese":"CAD","titolo":"Common CPI y/y","impatto":"Medium","forecast":"2.5%","previous":"2.4%"},{"t":"2026-11-16T17:00:00Z","paese":"USD","titolo":"Discorso del presidente Fed Warsh","impatto":"High","forecast":"","previous":""},{"t":"2026-11-16T22:50:00Z","paese":"AUD","titolo":"Discorso della governatrice RBA Bullock","impatto":"High","forecast":"","previous":""},{"t":"2026-11-17T02:00:00Z","paese":"NZD","titolo":"Aspettative di inflazione t/t","impatto":"High","forecast":"","previous":"2.34%"},{"t":"2026-11-17T07:00:00Z","paese":"GBP","titolo":"Indice salari 3m/a","impatto":"Medium","forecast":"3.5%","previous":"3.7%"},{"t":"2026-11-17T13:30:00Z","paese":"USD","titolo":"Vendite al dettaglio core m/m","impatto":"High","forecast":"0.4%","previous":"0.9%"},{"t":"2026-11-17T13:30:00Z","paese":"USD","titolo":"Vendite al dettaglio m/m","impatto":"High","forecast":"0.2%","previous":"0.8%"},{"t":"2026-11-18T00:30:00Z","paese":"AUD","titolo":"Indice prezzi salari t/t","impatto":"Medium","forecast":"0.9%","previous":"0.8%"},{"t":"2026-11-18T07:00:00Z","paese":"GBP","titolo":"CPI a/a","impatto":"High","forecast":"3.6%","previous":"3.5%"},{"t":"2026-11-18T07:30:00Z","paese":"GBP","titolo":"Discorso del governatore BoE Bailey","impatto":"Medium","forecast":"","previous":""},{"t":"2026-11-18T09:00:00Z","paese":"EUR","titolo":"Rapporto BCE sulla stabilità finanziaria","impatto":"Medium","forecast":"","previous":""},{"t":"2026-11-18T14:25:00Z","paese":"EUR","titolo":"Discorso della presidente BCE Lagarde","impatto":"Medium","forecast":"","previous":""},{"t":"2026-11-18T15:00:00Z","paese":"GBP","titolo":"Discorso del governatore BoE Bailey","impatto":"High","forecast":"","previous":""},{"t":"2026-11-18T18:00:00Z","paese":"NZD","titolo":"Discorso del governatore RBNZ Breman","impatto":"Medium","forecast":"","previous":""},{"t":"2026-11-18T19:00:00Z","paese":"USD","titolo":"Verbali della riunione FOMC","impatto":"High","forecast":"","previous":""},{"t":"2026-11-19T00:30:00Z","paese":"AUD","titolo":"Variazione occupati","impatto":"High","forecast":"25,2K","previous":"−39,3K"},{"t":"2026-11-19T00:30:00Z","paese":"AUD","titolo":"Tasso di disoccupazione","impatto":"High","forecast":"4.7%","previous":"4.7%"},{"t":"2026-11-19T13:30:00Z","paese":"EUR","titolo":"Discorso della presidente BCE Lagarde","impatto":"Medium","forecast":"","previous":""},{"t":"2026-11-19T13:30:00Z","paese":"USD","titolo":"Indice manifatturiero Philly Fed","impatto":"Medium","forecast":"19.2","previous":"20.9"},{"t":"2026-11-19T13:30:00Z","paese":"USD","titolo":"Richieste sussidi disoccupazione","impatto":"Medium","forecast":"199K","previous":"200K"},{"t":"2026-11-20T07:00:00Z","paese":"GBP","titolo":"Vendite al dettaglio m/m","impatto":"Medium","forecast":"0.0%","previous":"−0.4%"},{"t":"2026-11-20T08:15:00Z","paese":"EUR","titolo":"Discorso della presidente BCE Lagarde","impatto":"Medium","forecast":"","previous":""},{"t":"2026-11-20T15:00:00Z","paese":"USD","titolo":"Fiducia consumatori UoM, dato rivisto","impatto":"Medium","forecast":"52.1","previous":"51.0"},{"t":"2026-11-20T15:00:00Z","paese":"USD","titolo":"Aspettative inflazione UoM, dato rivisto","impatto":"Medium","forecast":"","previous":"4.3%"}]}}</script>
+<script>
+const D = JSON.parse(document.getElementById("dati").textContent);
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const store = { get: k => { try { return localStorage.getItem(k) } catch (e) { return null } }, set: (k, v) => { try { localStorage.setItem(k, v) } catch (e) {} } };
+
+const IT = { timeZone: "Europe/Rome" };
+const ora = s => s ? new Date(s).toLocaleTimeString("it-IT", { ...IT, hour: "2-digit", minute: "2-digit" }) : "—";
+const giorno = s => s ? new Date(s).toLocaleDateString("it-IT", { ...IT, weekday: "long", day: "numeric", month: "long" }) : "";
+const dkey = s => { const d = new Date(s); return d.toLocaleDateString("sv-SE", IT); };
+function fa(s) {
+  if (!s) return "";
+  const m = Math.round((Date.now() - new Date(s).getTime()) / 60000);
+  if (m < 1) return "adesso";
+  if (m < 60) return m + " min fa";
+  const h = Math.round(m / 60);
+  if (h < 24) return h + (h === 1 ? " ora fa" : " ore fa");
+  const g = Math.round(h / 24);
+  return g === 1 ? "ieri" : g + " giorni fa";
+}
+const n2 = v => v == null || !isFinite(v) ? "—" : Number(v).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pct = v => v == null || !isFinite(v) ? "—" : (v > 0 ? "+" : "") + Number(v).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
+const cls = v => v == null || !isFinite(v) ? "muted" : v > 0 ? "gain" : v < 0 ? "loss" : "muted";
+
+const S = { g: "azione", s: "pct", q: "", mia: new Set(), tutti: false };
+try { const raw = store.get("radar-mia"); if (raw) S.mia = new Set(JSON.parse(raw)); } catch (e) {}
+const salvaMia = () => store.set("radar-mia", JSON.stringify([...S.mia]));
+
+function indici() {
+  const P = D.prezzi || {}, a = (P.items || []).filter(x => x.gruppo === "indice" || x.gruppo === "futures");
+  $("idx-note").textContent = P.aggiornato ? "alle " + ora(P.aggiornato) + " · " + fa(P.aggiornato) : "in attesa del primo aggiornamento";
+  $("idx").innerHTML = a.length ? a.map(x => {
+    const r = (x.low != null && x.high != null && x.high > x.low && x.last != null)
+      ? Math.max(0, Math.min(100, (x.last - x.low) / (x.high - x.low) * 100)) : null;
+    return `<div class="idx"><div class="n1"><span class="sym">${esc(x.sym)}</span><span class="nome">${esc(x.nome || "")}</span></div>
+      <div class="n1"><span class="big">${n2(x.last)}</span><span class="p ${cls(x.pct)}">${pct(x.pct)}</span></div>
+      ${r != null ? `<div class="range" title="minimo ${n2(x.low)} · massimo ${n2(x.high)}"><i style="left:${r.toFixed(1)}%"></i></div><div class="lbl-s">min ${n2(x.low)} · max ${n2(x.high)}</div>` : ""}</div>`;
+  }).join("") : '<div class="empty">In attesa del primo aggiornamento.</div>';
+}
+
+function prezzi() {
+  const box = $("prezzi"), P = D.prezzi || {};
+  const items = (P.items || []).slice();
+  $("pz-note").textContent = P.aggiornato ? "aggiornati alle " + ora(P.aggiornato) + " · " + fa(P.aggiornato) : "in attesa del primo aggiornamento";
+  $("pz-fonte").textContent = P.fonte ? "Fonte dei prezzi: " + P.fonte + "." : "";
+  if (!items.length) {
+    box.innerHTML = '<div class="empty">Ancora nessun prezzo. Appena parte l\'aggiornamento automatico, qui compaiono indici, futures e azioni ordinati per quanto si stanno muovendo.</div>';
+    return;
+  }
+  let a = items.filter(x => {
+    if (S.g === "mia" && !S.mia.has(x.sym)) return false;
+    if (S.g === "indice" && x.gruppo !== "indice" && x.gruppo !== "futures") return false;
+    if (S.g === "azione" && x.gruppo !== "azione") return false;
+    if (S.s === "su" && !(x.pct > 0)) return false;
+    if (S.s === "giu" && !(x.pct < 0)) return false;
+    if (S.q) { const q = S.q.toLowerCase(); if (!String(x.sym).toLowerCase().includes(q) && !String(x.nome || "").toLowerCase().includes(q)) return false; }
+    return true;
+  });
+  a.sort(S.s === "az" ? (x, y) => String(x.sym).localeCompare(String(y.sym))
+    : S.s === "giu" ? (x, y) => (x.pct ?? 0) - (y.pct ?? 0)
+    : S.s === "su" ? (x, y) => (y.pct ?? 0) - (x.pct ?? 0)
+    : (x, y) => Math.abs(y.pct ?? 0) - Math.abs(x.pct ?? 0));
+  if (!a.length) { box.innerHTML = '<div class="empty">Niente con questi filtri.</div>'; $("piu").hidden = true; return; }
+  const tot = a.length, lim = 25;
+  if (tot > lim && !S.tutti) { a = a.slice(0, lim); $("piu").hidden = false; $("piu").textContent = "Mostra tutti e " + tot; }
+  else if (tot > lim) { $("piu").hidden = false; $("piu").textContent = "Mostra solo i primi " + lim; }
+  else $("piu").hidden = true;
+  box.innerHTML = a.map(x => {
+    const r = (x.low != null && x.high != null && x.high > x.low && x.last != null)
+      ? Math.max(0, Math.min(100, (x.last - x.low) / (x.high - x.low) * 100)) : null;
+    return `<div class="row">
+      <button class="star" type="button" data-star="${esc(x.sym)}" aria-pressed="${S.mia.has(x.sym)}" aria-label="Aggiungi o togli dalla mia lista">${S.mia.has(x.sym) ? "★" : "☆"}</button>
+      <div class="who"><span class="sym">${esc(x.sym)}</span>${x.gruppo === "futures" ? ' <span class="tag">future</span>' : x.gruppo === "indice" ? ' <span class="tag">indice</span>' : ""}<div class="nome">${esc(x.nome || "")}</div></div>
+      <div class="last">${n2(x.last)}</div>
+      <div class="pct ${cls(x.pct)}">${pct(x.pct)}</div>
+      ${r != null ? `<div class="range" title="minimo ${n2(x.low)} · massimo ${n2(x.high)}"><i style="left:${r.toFixed(1)}%"></i></div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+function news() {
+  const box = $("news"), N = D.news || {}, items = (N.items || []).slice(0, 40);
+  $("nw-note").textContent = N.aggiornato ? (N.fonte ? N.fonte + " · " : "") + fa(N.aggiornato) : "in attesa del primo aggiornamento";
+  box.innerHTML = items.length
+    ? items.map(x => `<div class="nw"><span class="t">${esc(ora(x.t))}</span><span>${esc(x.titolo)}</span></div>`).join("")
+    : '<div class="empty">Nessuna notizia caricata.</div>';
+}
+
+function calendario() {
+  const box = $("cal"), C = D.calendario || {};
+  const ora0 = Date.now() - 3600000;
+  const items = (C.items || []).filter(x => new Date(x.t).getTime() > ora0).sort((a, b) => a.t < b.t ? -1 : 1).slice(0, 40);
+  if (!items.length) { box.innerHTML = '<div class="empty">Nessun evento in programma nei dati attuali. Il calendario della settimana nuova viene pubblicato dalla fonte nel fine settimana.</div>'; return; }
+  let g = "", html = "";
+  for (const x of items) {
+    const k = dkey(x.t);
+    if (k !== g) { g = k; html += `<div class="day">${esc(giorno(x.t))}</div>`; }
+    const imp = String(x.impatto || "").toLowerCase();
+    html += `<div class="ev"><span class="t">${esc(ora(x.t))}</span><span class="imp ${imp === "high" ? "alto" : imp === "medium" ? "medio" : ""}"></span>
+      <span><span class="cc">${esc(x.paese || "")}</span> ${esc(x.titolo)}</span>
+      <span class="val">${x.forecast ? "attesa " + esc(x.forecast) : ""}${x.forecast && x.previous ? " · " : ""}${x.previous ? "prec. " + esc(x.previous) : ""}</span></div>`;
+  }
+  box.innerHTML = html;
+}
+
+function piede() {
+  const f = [];
+  if (D.prezzi && D.prezzi.fonte) f.push("prezzi: " + D.prezzi.fonte);
+  if (D.news && D.news.fonte) f.push("news: " + D.news.fonte);
+  if (D.calendario && D.calendario.fonte) f.push("calendario: " + D.calendario.fonte);
+  $("piede").innerHTML = esc("Fonti — " + f.join(" · ") + ".") +
+    "<br>Pagina aggiornata a intervalli, non in diretta: l'orario accanto a ogni sezione dice di quando sono i dati. Non è una fonte per eseguire ordini e non è un consiglio finanziario.";
+  $("sub").textContent = D.aggiornato ? "ultimo aggiornamento " + ora(D.aggiornato) + " · " + giorno(D.aggiornato) : "in attesa del primo aggiornamento";
+}
+
+function render() { indici(); prezzi(); news(); calendario(); piede(); }
+
+document.addEventListener("click", ev => {
+  const g = ev.target.closest("[data-g]");
+  if (g) { S.g = g.dataset.g; document.querySelectorAll("[data-g]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.g === S.g))); prezzi(); return; }
+  const s = ev.target.closest("[data-s]");
+  if (s) { S.s = s.dataset.s; document.querySelectorAll("[data-s]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.s === S.s))); prezzi(); return; }
+  const st = ev.target.closest("[data-star]");
+  if (st) { const k = st.dataset.star; S.mia.has(k) ? S.mia.delete(k) : S.mia.add(k); salvaMia(); prezzi(); return; }
+  if (ev.target.closest("#piu")) { S.tutti = !S.tutti; prezzi(); return; }
+  if (ev.target.closest("#tema")) {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const scuro = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.setAttribute("data-theme", scuro ? "light" : "dark");
+    store.set("radar-tema", scuro ? "light" : "dark");
+  }
+});
+$("cerca").addEventListener("input", e => { S.q = e.target.value.trim(); prezzi(); });
+const tema = store.get("radar-tema"); if (tema) document.documentElement.setAttribute("data-theme", tema);
+render();
+setInterval(() => { indici(); prezzi(); news(); }, 60000);
+</script>
+</body>
+</html>
