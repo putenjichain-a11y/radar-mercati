@@ -84,6 +84,24 @@ input[type="search"] { font: inherit; font-size: 14px; padding: 6px 10px; border
 .ev .cc { font-size: 11px; color: var(--muted); font-family: var(--mono) }
 .ev .sym { font-family: var(--mono); font-size: 13.5px }
 
+.sintesi { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px,100%),1fr)); gap: 12px 18px; align-items: end }
+.tile .k { font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted) }
+.tile .v { font-family: var(--mono); font-size: 27px; font-weight: 500; line-height: 1.15 }
+.tile .s { font-size: 12.5px; color: var(--muted) }
+.breadth { display: flex; height: 10px; border-radius: 5px; overflow: hidden; background: var(--grid); margin-top: 6px }
+.breadth i { display: block; height: 100% }
+.breadth .su { background: var(--gain) } .breadth .giu { background: var(--loss) }
+.legenda { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); margin-top: 5px; flex-wrap: wrap }
+.legenda b { font-family: var(--mono); color: var(--fg) }
+.mag { height: 6px; border-radius: 3px; background: var(--grid); position: relative; overflow: hidden }
+.mag i { position: absolute; top: 0; bottom: 0; left: 50%; }
+.mag i.su { background: var(--gain) } .mag i.giu { background: var(--loss); transform: translateX(-100%) }
+.mag u { position: absolute; top: -2px; width: 2px; height: 10px; background: var(--faint); border-radius: 1px }
+.idx { border-left: 3px solid var(--line) }
+.idx.su { border-left-color: var(--gain) } .idx.giu { border-left-color: var(--loss) }
+.att { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius: 4px; background: var(--sunk); border: 1px solid var(--line); white-space: nowrap }
+.att.su { color: var(--gain); border-color: color-mix(in srgb, var(--gain) 40%, var(--line)) }
+.att.giu { color: var(--loss); border-color: color-mix(in srgb, var(--loss) 40%, var(--line)) }
 .mkt { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 13px 5px 11px; font-size: 13.5px }
 .mkt .d { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none }
 .mkt.on .d { background: var(--gain); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gain) 25%, transparent) }
@@ -122,6 +140,11 @@ footer { font-size: 12px; color: var(--faint); line-height: 1.6 }
     <span class="mkt" id="mkt" title=""><span class="d"></span><span id="mkt-t">—</span></span>
     <button class="ghost" id="tema" type="button">Tema</button>
   </header>
+
+  <section class="panel">
+    <div class="ph"><h2>Come sta andando</h2><span class="note" id="sn-note"></span></div>
+    <div class="sintesi" id="sintesi"></div>
+  </section>
 
   <section class="panel">
     <div class="ph"><h2>Indici e futures</h2><span class="note" id="idx-note"></span></div>
@@ -190,12 +213,58 @@ function fa(s) {
   return g === 1 ? "ieri" : g + " giorni fa";
 }
 const n2 = v => v == null || !isFinite(v) ? "—" : Number(v).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const pct = v => v == null || !isFinite(v) ? "—" : (v > 0 ? "+" : "") + Number(v).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
+const pct = v => v == null || !isFinite(v) ? "—" : (v > 0 ? "+" : "") + Number(v).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + "%";
 const cls = v => v == null || !isFinite(v) ? "muted" : v > 0 ? "gain" : v < 0 ? "loss" : "muted";
 
 const S = { g: "azione", s: "pct", q: "", mia: new Set(), tutti: false };
 try { const raw = store.get("radar-mia"); if (raw) S.mia = new Set(JSON.parse(raw)); } catch (e) {}
 const salvaMia = () => store.set("radar-mia", JSON.stringify([...S.mia]));
+
+function valore(x) {
+  if (x == null) return null;
+  const t = String(x).trim().replace(/[$€%\s]/g, "").replace(/,/g, "");
+  const m = t.match(/^(-?\d+(?:\.\d+)?)([KMB])?$/i);
+  if (!m) return null;
+  const mult = { k: 1e3, m: 1e6, b: 1e9 }[(m[2] || "").toLowerCase()] || 1;
+  return parseFloat(m[1]) * mult;
+}
+function attesa(att, prec) {
+  const a = valore(att), p = valore(prec);
+  if (a == null || p == null || !p) return "";
+  const d = (a - p) / Math.abs(p) * 100;
+  if (!isFinite(d) || Math.abs(d) < 0.05) return `<span class="att">in linea</span>`;
+  return `<span class="att ${d > 0 ? "su" : "giu"}">${d > 0 ? "+" : ""}${Math.abs(d) >= 10 ? d.toFixed(0) : d.toFixed(1)}%</span>`;
+}
+function sorpresa(eff, att) {
+  const e = valore(eff), a = valore(att);
+  if (e == null || a == null || !a) return "";
+  const d = (e - a) / Math.abs(a) * 100;
+  if (!isFinite(d)) return "";
+  return `<span class="att ${d >= 0 ? "su" : "giu"}">${d >= 0 ? "+" : ""}${Math.abs(d) >= 10 ? d.toFixed(0) : d.toFixed(1)}% sull'attesa</span>`;
+}
+
+function sintesi() {
+  const P = D.prezzi || {}, tutti = P.items || [];
+  const az = tutti.filter(x => x.gruppo === "azione" && isFinite(x.pct));
+  const box = $("sintesi");
+  $("sn-note").textContent = P.aggiornato ? "alle " + ora(P.aggiornato) + " · " + fa(P.aggiornato) : "in attesa del primo aggiornamento";
+  if (!tutti.length) { box.innerHTML = '<div class="empty">In attesa del primo aggiornamento.</div>'; return; }
+  const capo = s => tutti.find(x => x.sym === s);
+  const tile = (k, it, suff) => {
+    if (!it) return "";
+    return `<div class="tile"><div class="k">${esc(k)}</div><div class="v ${cls(it.pct)}">${pct(it.pct)}</div><div class="s">${n2(it.last)}${suff ? " " + suff : ""}</div></div>`;
+  };
+  const su = az.filter(x => x.pct > 0).length, giu = az.filter(x => x.pct < 0).length, pari = az.length - su - giu;
+  const media = az.length ? az.reduce((t, x) => t + x.pct, 0) / az.length : 0;
+  const q = az.length ? su / az.length * 100 : 50;
+  box.innerHTML = tile("Nasdaq future", capo("NQ=F")) + tile("S&P future", capo("ES=F")) + tile("Oro future", capo("GC=F"))
+    + tile("Volatilità", capo("^VIX"))
+    + `<div class="tile" style="grid-column: 1/-1">
+        <div class="k">Ampiezza del movimento · ${az.length} titoli del Nasdaq 100</div>
+        <div class="breadth"><i class="su" style="width:${q.toFixed(1)}%"></i><i class="giu" style="width:${(100 - q).toFixed(1)}%"></i></div>
+        <div class="legenda"><span><b class="gain">${su}</b> in rialzo</span><span><b class="loss">${giu}</b> in ribasso</span>${pari ? `<span><b>${pari}</b> invariati</span>` : ""}<span>variazione media <b class="${cls(media)}">${pct(media)}</b></span></div>
+      </div>`;
+}
 
 function indici() {
   const P = D.prezzi || {}, a = (P.items || []).filter(x => x.gruppo === "indice" || x.gruppo === "futures");
@@ -203,7 +272,7 @@ function indici() {
   $("idx").innerHTML = a.length ? a.map(x => {
     const r = (x.low != null && x.high != null && x.high > x.low && x.last != null)
       ? Math.max(0, Math.min(100, (x.last - x.low) / (x.high - x.low) * 100)) : null;
-    return `<div class="idx"><div class="n1"><span class="sym">${esc(x.sym)}</span><span class="nome">${esc(x.nome || "")}</span></div>
+    return `<div class="idx ${x.pct > 0 ? "su" : x.pct < 0 ? "giu" : ""}"><div class="n1"><span class="sym">${esc(x.sym)}</span><span class="nome">${esc(x.nome || "")}</span></div>
       <div class="n1"><span class="big">${n2(x.last)}</span><span class="p ${cls(x.pct)}">${pct(x.pct)}</span></div>
       ${r != null ? `<div class="range" title="minimo ${n2(x.low)} · massimo ${n2(x.high)}"><i style="left:${r.toFixed(1)}%"></i></div><div class="lbl-s">min ${n2(x.low)} · max ${n2(x.high)}</div>` : ""}</div>`;
   }).join("") : '<div class="empty">In attesa del primo aggiornamento.</div>';
@@ -236,15 +305,17 @@ function prezzi() {
   if (tot > lim && !S.tutti) { a = a.slice(0, lim); $("piu").hidden = false; $("piu").textContent = "Mostra tutti e " + tot; }
   else if (tot > lim) { $("piu").hidden = false; $("piu").textContent = "Mostra solo i primi " + lim; }
   else $("piu").hidden = true;
+  const maxAbs = Math.max(1, ...a.map(x => Math.abs(x.pct || 0)));
   box.innerHTML = a.map(x => {
     const r = (x.low != null && x.high != null && x.high > x.low && x.last != null)
       ? Math.max(0, Math.min(100, (x.last - x.low) / (x.high - x.low) * 100)) : null;
+    const w = Math.min(50, Math.abs(x.pct || 0) / maxAbs * 50);
     return `<div class="row">
       <button class="star" type="button" data-star="${esc(x.sym)}" aria-pressed="${S.mia.has(x.sym)}" aria-label="Aggiungi o togli dalla mia lista">${S.mia.has(x.sym) ? "★" : "☆"}</button>
       <div class="who"><span class="sym">${esc(x.sym)}</span>${x.gruppo === "futures" ? ' <span class="tag">future</span>' : x.gruppo === "indice" ? ' <span class="tag">indice</span>' : ""}<div class="nome">${esc(x.nome || "")}</div></div>
       <div class="last">${n2(x.last)}</div>
       <div class="pct ${cls(x.pct)}">${pct(x.pct)}</div>
-      ${r != null ? `<div class="range" title="minimo ${n2(x.low)} · massimo ${n2(x.high)}"><i style="left:${r.toFixed(1)}%"></i></div>` : ""}
+      <div class="mag" title="${r != null ? `minimo ${n2(x.low)} · massimo ${n2(x.high)}` : pct(x.pct)}"><i class="${x.pct >= 0 ? "su" : "giu"}" style="width:${w.toFixed(2)}%"></i>${r != null ? `<u style="left:${r.toFixed(1)}%"></u>` : ""}</div>
     </div>`;
   }).join("");
 }
@@ -270,7 +341,7 @@ function trimestrali() {
     const alto = String(x.impatto || "").toLowerCase() === "high";
     html += `<div class="ev"><span class="t">${esc(ora(x.t))}</span><span class="imp ${alto ? "alto" : "medio"}"></span>
       <span><b class="sym">${esc(x.sym || "")}</b> ${esc(x.nome || "")}${x.quando ? ` <span class="tag">${esc(x.quando)}</span>` : ""}</span>
-      <span class="val">${x.atteso ? "atteso " + esc(x.atteso) : ""}${x.atteso && x.precedente ? " · " : ""}${x.precedente ? "prec. " + esc(x.precedente) : ""}${x.effettivo ? " · <b>uscito " + esc(x.effettivo) + "</b>" : ""}</span></div>`;
+      <span class="val">${x.atteso ? "atteso " + esc(x.atteso) : ""}${x.precedente ? " · un anno fa " + esc(x.precedente) : ""} ${attesa(x.atteso, x.precedente)}${x.effettivo ? ` · <b>uscito ${esc(x.effettivo)}</b> ${sorpresa(x.effettivo, x.atteso)}` : ""}</span></div>`;
   }
   box.innerHTML = html;
 }
@@ -287,7 +358,7 @@ function calendario() {
     const imp = String(x.impatto || "").toLowerCase();
     html += `<div class="ev"><span class="t">${esc(ora(x.t))}</span><span class="imp ${imp === "high" ? "alto" : imp === "medium" ? "medio" : ""}"></span>
       <span><span class="cc">${esc(x.paese || "")}</span> ${esc(x.titolo)}</span>
-      <span class="val">${x.forecast ? "attesa " + esc(x.forecast) : ""}${x.forecast && x.previous ? " · " : ""}${x.previous ? "prec. " + esc(x.previous) : ""}</span></div>`;
+      <span class="val">${x.forecast ? "attesa " + esc(x.forecast) : ""}${x.forecast && x.previous ? " · " : ""}${x.previous ? "prec. " + esc(x.previous) : ""} ${attesa(x.forecast, x.previous)}</span></div>`;
   }
   box.innerHTML = html;
 }
@@ -378,7 +449,7 @@ function mercato() {
   el.title = "Borsa di New York, 9:30–16:00 ora di New York. Festività e mezze giornate incluse.";
 }
 
-function render() { mercato(); indici(); prezzi(); news(); trimestrali(); calendario(); piede(); }
+function render() { mercato(); sintesi(); indici(); prezzi(); news(); trimestrali(); calendario(); piede(); }
 
 document.addEventListener("click", ev => {
   const g = ev.target.closest("[data-g]");
@@ -399,7 +470,7 @@ $("cerca").addEventListener("input", e => { S.q = e.target.value.trim(); prezzi(
 const tema = store.get("radar-tema"); if (tema) document.documentElement.setAttribute("data-theme", tema);
 render();
 setInterval(mercato, 1000);
-setInterval(() => { indici(); prezzi(); news(); }, 60000);
+setInterval(() => { sintesi(); indici(); prezzi(); news(); }, 60000);
 </script>
 </body>
 </html>
